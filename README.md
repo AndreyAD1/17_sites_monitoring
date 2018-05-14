@@ -25,8 +25,10 @@ of the script.
 To run script on Linux:
 ```bash
 $ python check_sites_health.py sites.txt
-URL: http://yandex.ru; response_status: OK; expiration date status: OK. Domain will not expire within a month.
-URL: http://devman.org; response_status: OK; expiration date status: OK. Domain will not expire within a month.
+http://yandex.ru
+Response: OK. Expiration date: OK (domain will not expire soon).
+http://devman.org
+Response: OK. Expiration date: OK (domain will not expire soon).
 ```
 
 Windows usage is the same.
