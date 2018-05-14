@@ -1,8 +1,8 @@
 import argparse
 import requests
 import whois
-from urllib.parse import urlsplit
 from datetime import datetime
+import requests.exceptions as exceptions
 
 
 def get_console_arguments():
@@ -17,35 +17,31 @@ def get_console_arguments():
 
 
 def get_url_list_for_checking(path):
-    with open(path, 'r', encoding='utf-8') as file_with_urls:
-        file_content = file_with_urls.read()
-    url_list = file_content.split()
-    return url_list
-
-
-def get_response_status(url):
     try:
-        response = requests.get(url)
-        return response.status_code
-    except requests.exceptions.MissingSchema:
-        return 'Invalid URL'
-    except requests.exceptions.ConnectionError:
+        with open(path, 'r', encoding='utf-8') as file_with_urls:
+            file_content = file_with_urls.read()
+        urls = file_content.split()
+        return urls
+    except FileNotFoundError:
         return None
 
 
-def get_domain_name(link):
-    splitted_link = urlsplit(link)
-    domain_name = splitted_link.netloc
-    return domain_name
+def get_response_status(link):
+    try:
+        response = requests.get(link)
+        return response.status_code
+    except (exceptions.MissingSchema, exceptions.InvalidURL):
+        return False
+    except exceptions.ConnectionError:
+        return None
 
 
-def get_domain_expiration_date(url):
-    domain_name = get_domain_name(url)
-    whois_response = whois.whois(domain_name)
+def get_domain_expiration_date(link):
+    whois_response = whois.whois(link)
     domain_expiration_date = whois_response.expiration_date
     if type(domain_expiration_date) is list:
-        first_expiration_date = domain_expiration_date[0]
-        return first_expiration_date
+        earliest_expiration_date = min(domain_expiration_date)
+        return earliest_expiration_date
     return domain_expiration_date
 
 
@@ -73,10 +69,16 @@ if __name__ == '__main__':
     console_arguments = get_console_arguments()
     input_file_path = console_arguments.file_path
     url_list = get_url_list_for_checking(input_file_path)
+    if url_list is None:
+        exit('Can not find the input file.')
     for url in url_list:
         response_status = get_response_status(url)
         if response_status is None:
-            exit('Can not connect to the server.')
+            print('Can not connect to the {}'.format(url))
+            continue
+        if response_status is False:
+            print('{} is invalid URL.'.format(url))
+            continue
         expiration_date = get_domain_expiration_date(url)
         proper_expiration_date = check_expiration_date(expiration_date)
         print_site_status(url, response_status, proper_expiration_date)
