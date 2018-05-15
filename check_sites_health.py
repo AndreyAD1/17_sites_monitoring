@@ -2,7 +2,7 @@ import argparse
 import requests
 import whois
 from datetime import datetime
-import requests.exceptions as exc
+import socket
 
 
 def get_console_arguments():
@@ -26,44 +26,46 @@ def load_url_list_for_checking(path):
         return None
 
 
-def get_response_status(url):
+def does_server_respond_with_ok(url):
     try:
         response = requests.get(url)
         return response.ok
-    except (exc.MissingSchema, exc.InvalidSchema, exc.InvalidURL):
-        return 'invalid URL'
-    except exc.ConnectionError:
+    except requests.exceptions.ConnectionError:
         return None
 
 
 def get_domain_expiration_date(url):
-    whois_response = whois.whois(url)
-    domain_expiration_date = whois_response.expiration_date
-    if type(domain_expiration_date) is list:
-        first_exp_date_index = 0
-        first_expiration_date = domain_expiration_date[first_exp_date_index]
-        return first_expiration_date
-    return domain_expiration_date
+    try:
+        whois_response = whois.whois(url)
+        domain_expiration_date = whois_response.expiration_date
+        if type(domain_expiration_date) is list:
+            first_exp_date_index = 0
+            first_expiration_date = domain_expiration_date[first_exp_date_index]
+            return first_expiration_date
+        return domain_expiration_date
+    except socket.gaierror:
+        return None
 
 
 def check_expiration_date(exp_date, days_number=31):
+    if exp_date is None:
+        return None
     current_date = datetime.today()
     time_gap_to_expiration_date = exp_date - current_date
     return time_gap_to_expiration_date.days >= days_number
 
 
-def print_site_status(link, response_status, proper_expiry_date):
+def print_site_status(link, ok_response, proper_expiry_date):
     response_message = 'OK'
     exp_date_message = 'OK (domain will not expire soon)'
-    if response_status is None:
-        response_message = 'no connection'
-    if response_status == 'invalid URL':
-        print('{} is invalid URL.'.format(url))
-        return
-    if response_status is False:
-        response_message = 'WRONG'
-    if not proper_expiry_date:
-        exp_date_message = 'WARNING: domain is going to expire within a month'
+    if ok_response is None:
+        response_message = 'No connection'
+    if ok_response is False:
+        response_message = 'WARNING! Response status is not OK'
+    if proper_expiry_date is None:
+        exp_date_message = 'WARNING! Can`t get the expiration date of domain'
+    if proper_expiry_date is False:
+        exp_date_message = 'WARNING! Domain is going to expire within a month'
     print(
         '{}\nResponse: {}. Expiration date: {}.'.format(
             link,
@@ -80,7 +82,7 @@ if __name__ == '__main__':
     if url_list is None:
         exit('Can not find the input file.')
     for url in url_list:
-        response_status = get_response_status(url)
+        server_responds_ok = does_server_respond_with_ok(url)
         expiration_date = get_domain_expiration_date(url)
         proper_expiration_date = check_expiration_date(expiration_date)
-        print_site_status(url, response_status, proper_expiration_date)
+        print_site_status(url, server_responds_ok, proper_expiration_date)
